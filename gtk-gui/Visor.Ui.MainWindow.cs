@@ -5,54 +5,101 @@ namespace Visor.Ui
 	public partial class MainWindow
 	{
 		private global::Gtk.UIManager UIManager;
-		private global::Gtk.Action FileAction;
-		private global::Gtk.Action EditAction;
-		private global::Gtk.Action HelpAction;
-		private global::Gtk.Action aboutAction;
-		private global::Gtk.Action openAction;
-		private global::Gtk.Action quitAction;
-		private global::Gtk.Action ViewAction;
-		private global::Gtk.Action goForwardAction;
-		private global::Gtk.Action goBackAction;
-		private global::Gtk.Action GoToAction;
-		private global::Gtk.Action gotoFirstAction;
-		private global::Gtk.Action gotoLastAction;
-		private global::Gtk.Action indexAction;
-		private global::Gtk.Action closeAction;
-		private global::Gtk.ToggleAction ViewToolbarAction;
-		private global::Gtk.Action positionAction;
-		private global::Gtk.Action findAction;
-		private global::Gtk.VBox vbox1;
-		private global::Gtk.MenuBar menubar1;
-		private global::Gtk.HBox hbox3;
-		private global::Gtk.Toolbar tbToolbar;
-		private global::Gtk.HBox hbPanelGo;
-		private global::Gtk.SpinButton sbFilePosition;
-		private global::Gtk.Button btCloseGoPanel;
-		private global::Gtk.HBox hbPanelFind;
-		private global::Gtk.Entry edFind;
-		private global::Gtk.ComboBox cbType;
-		private global::Gtk.Button btFind;
-		private global::Gtk.Button btCloseFindPanel;
-		private global::Gtk.HBox hbox1;
-		private global::Gtk.Frame frFile1;
-		private global::Gtk.Alignment GtkAlignment7;
-		private global::Gtk.HBox hbox2;
-		private global::Gtk.Notebook nbView;
-		private global::Gtk.ScrolledWindow GtkScrolledWindow1;
-		private global::Gtk.TreeView tvFile;
-		private global::Gtk.Label lblHexPage;
-		private global::Gtk.ScrolledWindow GtkScrolledWindow;
-		private global::Gtk.TextView txtFile;
-		private global::Gtk.Label label3;
-		private global::Gtk.Label frFrame1Label;
-		private global::Gtk.Statusbar stStatusBar;
-		private global::Gtk.HBox hbIndicators;
-		private global::Gtk.Label lblMinPos;
-		private global::Gtk.HScrollbar scrlSideBar;
-		private global::Gtk.Label lblMaxPos;
-		private global::Gtk.Label lblPosition;
 		
+		private global::Gtk.Action FileAction;
+		
+		private global::Gtk.Action EditAction;
+		
+		private global::Gtk.Action HelpAction;
+		
+		private global::Gtk.Action aboutAction;
+		
+		private global::Gtk.Action openAction;
+		
+		private global::Gtk.Action quitAction;
+		
+		private global::Gtk.Action ViewAction;
+		
+		private global::Gtk.Action goForwardAction;
+		
+		private global::Gtk.Action goBackAction;
+		
+		private global::Gtk.Action GoToAction;
+		
+		private global::Gtk.Action gotoFirstAction;
+		
+		private global::Gtk.Action gotoLastAction;
+		
+		private global::Gtk.Action indexAction;
+		
+		private global::Gtk.Action closeAction;
+		
+		private global::Gtk.ToggleAction ViewToolbarAction;
+		
+		private global::Gtk.Action positionAction;
+		
+		private global::Gtk.Action findAction;
+		
+		private global::Gtk.VBox vbox1;
+		
+		private global::Gtk.MenuBar menubar1;
+		
+		private global::Gtk.HBox hbox3;
+		
+		private global::Gtk.Toolbar tbToolbar;
+		
+		private global::Gtk.HBox hbPanelGo;
+		
+		private global::Gtk.SpinButton sbFilePosition;
+		
+		private global::Gtk.Button btCloseGoPanel;
+		
+		private global::Gtk.HBox hbPanelFind;
+		
+		private global::Gtk.Entry edFind;
+		
+		private global::Gtk.ComboBox cbType;
+		
+		private global::Gtk.Button btFind;
+		
+		private global::Gtk.Button btCloseFindPanel;
+		
+		private global::Gtk.HBox hbox1;
+		
+		private global::Gtk.Frame frFile1;
+		
+		private global::Gtk.Alignment GtkAlignment7;
+		
+		private global::Gtk.HBox hbox2;
+		
+		private global::Gtk.Notebook nbView;
+		
+		private global::Gtk.ScrolledWindow GtkScrolledWindow1;
+		
+		private global::Gtk.TreeView tvFile;
+		
+		private global::Gtk.Label lblHexPage;
+		
+		private global::Gtk.ScrolledWindow GtkScrolledWindow;
+		
+		private global::Gtk.TextView txtFile;
+		
+		private global::Gtk.Label label3;
+		
+		private global::Gtk.Label frFrame1Label;
+		
+		private global::Gtk.Statusbar stStatusBar;
+		
+		private global::Gtk.HBox hbIndicators;
+		
+		private global::Gtk.Label lblMinPos;
+		
+		private global::Gtk.HScrollbar scrlSideBar;
+		
+		private global::Gtk.Label lblMaxPos;
+		
+		private global::Gtk.Label lblPosition;
+
 		protected virtual void Build ()
 		{
 			global::Stetic.Gui.Initialize (this);

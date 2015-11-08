@@ -6,7 +6,6 @@
   </configuration>
   <import>
     <widget-library name="../bin/Release/visor.exe" internal="true" />
-    <widget-library name="../../../CsMyLib/GtkUtil/bin/Release/GtkUtil.dll" />
   </import>
   <widget class="Gtk.Window" id="Visor.Ui.MainWindow" design-size="594 514">
     <action-group name="Default">

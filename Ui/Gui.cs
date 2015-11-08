@@ -14,21 +14,6 @@ public partial class MainWindow : Gtk.Window {
 	public const int MaxTitleLength = 32;
 	public const string CfgFileName = ".visor.cfg";
 	
-	protected static string fileName = "";
-	protected Core.Document document = null;
-	protected Menu popup = null;
-
-	/// <summary>
-	/// Determines whether the GUI is updating the data view
-	/// </summary>
-	protected bool Updating {
-		get; set;
-	}
-	
-	public Core.Document Document {
-		get { return this.document; }
-	}
-		
 	public MainWindow(string fileName) : this()
 	{
 		this.LoadDocument( fileName );
@@ -39,52 +24,269 @@ public partial class MainWindow : Gtk.Window {
 		try {
 			// Prepare
 			this.Build();
-			this.CreatePopup();
+			this.BuildMe();
 			this.SetTitle();
 			this.DeactivateUI();
 			this.SetStatus( "Ready" );
 			this.Updating = false;
 			
-			// Configure widgets
-			MainWindow.PrepareFileBinView( this.tvFile );
-			Gdk.Geometry minSize = new Gdk.Geometry();
-			minSize.MinHeight = MainWindow.MinHeight;
-			minSize.MinWidth = MainWindow.MinWidth;
-			this.SetDefaultSize( minSize.MinHeight, minSize.MinWidth );
-			this.SetGeometryHints( this, minSize, Gdk.WindowHints.MinSize );
-
-			// Events
-			this.ButtonReleaseEvent += OnClick;
-			
-			// Set fonts
-			this.txtFile.ModifyFont( Pango.FontDescription.FromString("Courier 10") );
-			this.tvFile.ModifyFont( Pango.FontDescription.FromString("Courier 10") );
-			
 			fileName = System.IO.Directory.GetCurrentDirectory();
 			this.ReadConfiguration();
 		} finally {
-			this.Visible = true;
+			this.Show();
 		}
 	}
-		
-	private string cfgFile = "";
-	public string CfgFile
+
+	/// <summary>
+	/// Create the contextual menu and make it ready for action
+	/// </summary>
+	private void BuildPopup()
 	{
-		get {
-			if ( cfgFile.Trim().Length == 0 ) {
-				this.cfgFile = Util.GetCfgCompletePath( CfgFileName );
+		// Menus
+		this.popup = new Menu();
+
+		// First
+		var menuItemGoFirst = new ImageMenuItem( "Go to f_irst" );
+		menuItemGoFirst.Image = new Gtk.Image( Stock.GotoFirst, IconSize.Menu );
+		menuItemGoFirst.Activated += delegate { this.OnGotoFirst( null, null ); };
+		popup.Append( menuItemGoFirst );
+
+		// Forward
+		var menuItemGoForward = new ImageMenuItem( "Go _forward" );
+		menuItemGoForward.Image = new Gtk.Image( Stock.GoForward, IconSize.Menu );
+		menuItemGoForward.Activated += delegate { this.OnGoForward( null, null ); };
+		popup.Append( menuItemGoForward );
+
+		// Back
+		var menuItemGoBack = new ImageMenuItem( "Go _back" );
+		menuItemGoBack.Image = new Gtk.Image( Stock.GoBack, IconSize.Menu );
+		menuItemGoBack.Activated += delegate { this.OnGoBackward( null, null ); };
+		popup.Append( menuItemGoBack );
+
+		// Last
+		var menuItemGoLast = new ImageMenuItem( "Go to _last" );
+		menuItemGoLast.Image = new Gtk.Image( Stock.GotoLast, IconSize.Menu );
+		menuItemGoLast.Activated += delegate { this.OnGotoLast( null, null ); };
+		popup.Append( menuItemGoLast );
+
+		// Close
+		var menuItemClose = new ImageMenuItem( "_Close" );
+		menuItemClose.Image = new Gtk.Image( Stock.Close, IconSize.Menu );
+		menuItemClose.Activated += delegate { this.OnClose( null, null ); };
+		popup.Append( menuItemClose );
+
+		// Finish
+		popup.ShowAll();
+	}
+
+	private void BuildActions()
+	{
+		this.actOpen = new Gtk.Action( "open", "Open", "open file", Gtk.Stock.Open );
+		this.actOpen.Activated += (sender, e) => this.OnOpen( sender, e );
+
+		this.actClose = new Gtk.Action( "close", "Close", "close file", Gtk.Stock.Close );
+		this.actClose.Activated += (sender, e) => this.OnClose( sender, e );
+
+		this.actQuit = new Gtk.Action( "quit", "Quit", "quit app", Gtk.Stock.Quit );
+		this.actQuit.Activated += (sender, e) => this.OnQuit( sender ,e );
+
+		this.actViewToolbar = new Gtk.Action( "view-toolbar", "View toolbar", "view toolbar", null );
+		this.actViewToolbar.Activated += (sender, e) => this.OnViewToolbar( sender, e );
+
+		this.actForward = new Gtk.Action( "forward", "Go forward", "go forward", Gtk.Stock.GoForward );
+		this.actForward.Activated += (sender, e) => this.OnGoForward( sender, e );
+
+		this.actBack = new Gtk.Action( "forward", "Go forward", "go forward", Gtk.Stock.GoBack );
+		this.actBack.Activated += (sender, e) => this.OnGoBackward( sender, e );
+
+		this.actRewind = new Gtk.Action( "rewind", "Go to first", "go to first", Gtk.Stock.GotoFirst );
+		this.actRewind.Activated += (sender, e) => this.OnGotoFirst( sender, e );
+
+		this.actGoToEnd = new Gtk.Action( "go-to-end", "Go to last", "go to last", Gtk.Stock.GotoLast );
+		this.actGoToEnd.Activated += (sender, e) => this.OnGotoLast( sender, e );
+
+		this.actGoTo = new Gtk.Action( "go-to", "Go to...", "go to...", Gtk.Stock.Edit );
+		this.actGoTo.Activated += (sender, e) => this.OnGoto( sender, e );
+
+		this.actFind = new Gtk.Action( "find", "Find", "find", Gtk.Stock.Find );
+		this.actFind.Activated += (sender, e) => this.OnFind( sender, e );
+
+		this.actAbout = new Gtk.Action( "about", "About", "about...", Gtk.Stock.About );
+		this.actAbout.Activated += (sender, e) => this.OnAbout( sender ,e );
+	}
+
+	private void BuildFileChunkViewer()
+	{
+		this.tvFile.Hide();
+
+		try {
+			// Create liststore (16 columns + index column + text column)
+			var types = new System.Type[ Core.Document.Columns + 2 ];
+
+			for(int typeNumber = 0; typeNumber < types.Length; ++typeNumber) {
+				types[ typeNumber ] = typeof( string );
 			}
-			
-			return this.cfgFile;
+			Gtk.ListStore listStore = new Gtk.ListStore( types );
+			this.tvFile.Model = listStore;
+
+			// Delete existing columns
+			while( this.tvFile.Columns.Length > 0 ) {
+				this.tvFile.RemoveColumn( this.tvFile.Columns[ 0 ] );
+			}
+
+			// Create indexes column
+			var column = new Gtk.TreeViewColumn();
+			var cell = new Gtk.CellRendererText();
+			column.Title = "#";
+			column.PackStart( cell, true );
+			cell.Editable = false;
+			cell.Foreground = "black";
+			cell.Background = "light gray";
+			column.AddAttribute( cell, "text", 0 );
+			this.tvFile.AppendColumn( column );
+
+			// Create columns belonging to the document
+			for(int columnNumber = 0; columnNumber < Core.Document.Columns; ++columnNumber) {
+				column = new Gtk.TreeViewColumn();
+				cell = new Gtk.CellRendererText();
+				column.Title = columnNumber.ToString( "X" );
+				column.PackStart( cell, true );
+				cell.Editable = false;
+				column.AddAttribute( cell, "text", columnNumber + 1 );
+				this.tvFile.AppendColumn( column );
+			}
+
+			// Create text representation column
+			column = new Gtk.TreeViewColumn();
+			cell = new Gtk.CellRendererText();
+			column.Title = "txt";
+			column.PackStart( cell, true );
+			cell.Editable = false;
+			cell.Foreground = "black";
+			cell.Background = "gray";
+			column.AddAttribute( cell, "text", Core.Document.Columns +1 );
+			this.tvFile.AppendColumn( column );
+		} catch(Exception e) {
+			Util.MsgError( null, Core.AppInfo.Name, "Error building view: '" + e.Message + '\'' );
 		}
+
+		this.tvFile.EnableGridLines = TreeViewGridLines.Both;
+		this.tvFile.SetCursor(
+			new TreePath( new int[]{ 0 } ),
+			this.tvFile.Columns[ 0 ],
+			false
+		);
+		this.tvFile.Show();
+	}
+
+	private void BuildMenu()
+	{
+		var accelGroup = new Gtk.AccelGroup();
+
+		// File
+		this.miFile = new Gtk.MenuItem( "_File" );
+		this.mFile = new Gtk.Menu();
+		this.miFile.Submenu = this.mFile;
+
+		var opOpen = this.actOpen.CreateMenuItem();
+		opOpen.AddAccelerator( "activate", accelGroup, new Gtk.AccelKey(
+			Gdk.Key.o, Gdk.ModifierType.ControlMask, Gtk.AccelFlags.Visible) );
+
+		var opQuit = this.actQuit.CreateMenuItem();
+		opQuit.AddAccelerator( "activate", accelGroup, new Gtk.AccelKey(
+			Gdk.Key.q, Gdk.ModifierType.ControlMask, Gtk.AccelFlags.Visible) );
+
+		miFile.Add( opOpen );
+		miFile.Add( this.actClose.CreateMenuItem() );
+		miFile.Add( new Gtk.SeparatorMenuItem() );
+		miFile.Add( opQuit );
+
+		// View
+		this.miView = new Gtk.MenuItem( "_View" );
+		this.mView = new Gtk.Menu();
+		this.miView.Submenu = this.mView;
+
+		var opViewToolbar = this.actViewToolbar.CreateMenuItem();
+
+		var opForward = this.actForward.CreateMenuItem();
+		opForward.AddAccelerator( "activate", accelGroup, new Gtk.AccelKey(
+				Gdk.Key.Page_Down, Gdk.ModifierType.None, Gtk.AccelFlags.Visible) );
+
+		var opBackward = this.actBack.CreateMenuItem();
+		opForward.AddAccelerator( "activate", accelGroup, new Gtk.AccelKey(
+			Gdk.Key.Page_Up, Gdk.ModifierType.None, Gtk.AccelFlags.Visible) );
+
+		var opRewind = this.actRewind.CreateMenuItem();
+		opRewind.AddAccelerator( "activate", accelGroup, new Gtk.AccelKey(
+			Gdk.Key.Page_Up, Gdk.ModifierType.ControlMask, Gtk.AccelFlags.Visible) );
+
+		var opGotoLast = this.actGoToEnd.CreateMenuItem();
+		opGotoLast.AddAccelerator( "activate", accelGroup, new Gtk.AccelKey(
+			Gdk.Key.Page_Down, Gdk.ModifierType.ControlMask, Gtk.AccelFlags.Visible) );
+
+		var opGo = this.actGoTo.CreateMenuItem();
+		opGo.AddAccelerator( "activate", accelGroup, new Gtk.AccelKey(
+			Gdk.Key.g, Gdk.ModifierType.ControlMask, Gtk.AccelFlags.Visible) );
+
+		var opFind = this.actFind.CreateMenuItem();
+		opFind.AddAccelerator( "activate", accelGroup, new Gtk.AccelKey(
+			Gdk.Key.f, Gdk.ModifierType.ControlMask, Gtk.AccelFlags.Visible) );
+
+		this.mView.Add( opViewToolbar );
+		this.mView.Add( opForward );
+		this.mView.Add( opBackward );
+		this.mView.Add( opRewind );
+		this.mView.Add( opGotoLast );
+		this.mView.Add( opGo );
+		this.mView.Add( new Gtk.SeparatorMenuItem() );
+		this.mView.Add( opFind );
+
+		// Help
+		this.miHelp = new Gtk.MenuItem( "_Help" );
+		this.mHelp = new Gtk.Menu();
+		this.miHelp.Submenu = this.mHelp;
+		this.mHelp.Add( this.actAbout.CreateMenuItem() );
+
+		// Menu bar
+		this.mbMenuBar = new Gtk.MenuBar();
+		this.mbMenuBar.Add( miFile );
+		this.mbMenuBar.Add( miView );
+		this.mbMenuBar.Add( miHelp );
+		this.AddAccelGroup( accelGroup );
+	}
+
+	private void BuildMe()
+	{
+		this.BuildActions();
+		this.BuildMenu();
+		this.BuildPopup();
+		this.BuildFileChunkViewer();
+
+		this.SetGeometryHints(
+			this,
+			new Gdk.Geometry() {
+				MinWidth = MainWindow.MinHeight,
+				MinHeight = MainWindow.MinWidth
+			},
+			Gdk.WindowHints.MinSize
+		);
+		this.SetDefaultSize( MainWindow.MinHeight, MainWindow.MinWidth );
+		this.ShowAll();
+
+		// Set fonts
+		this.txtFile.ModifyFont( Pango.FontDescription.FromString("Courier 10") );
+		this.tvFile.ModifyFont( Pango.FontDescription.FromString("Courier 10") );
+
+		// Events
+		this.ButtonReleaseEvent += OnClick;
 	}
 		
-	protected void SetTitle()
+	private void SetTitle()
 	{
 		this.SetTitle( "" );
 	}
 		
-	protected void SetTitle(string fileName)
+	private void SetTitle(string fileName)
 	{
 		string title = Core.AppInfo.Name;
 			
@@ -101,20 +303,20 @@ public partial class MainWindow : Gtk.Window {
 		this.Title = title;
 	}
 		
-	protected void OnClick(object obj, Gtk.ButtonReleaseEventArgs args)
+	private void OnClick(object obj, Gtk.ButtonReleaseEventArgs args)
 	{
 		if ( args.Event.Button == 3 ) {
 			this.popup.Popup();
 		}
 	}
 
-	protected void OnDeleteEvent(object sender, DeleteEventArgs a)
+	private void OnDeleteEvent(object sender, DeleteEventArgs a)
 	{
 		Quit();
 		a.RetVal = true;
 	}
 	
-	protected void Quit()
+	private void Quit()
 	{
 		this.WriteConfiguration();
 		Application.Quit();
@@ -183,74 +385,10 @@ public partial class MainWindow : Gtk.Window {
 		tvTable.Show();
 	}
 		
-	public static void PrepareFileBinView(Gtk.TreeView tvTable)
-	{
-		tvTable.Hide();
-		
-		try {
-			// Create liststore (16 columns + index column + text column)
-			var types = new System.Type[ Core.Document.Columns + 2 ];
-				
-			for(int typeNumber = 0; typeNumber < types.Length; ++typeNumber) {
-				types[ typeNumber ] = typeof( string );
-			}
-			Gtk.ListStore listStore = new Gtk.ListStore( types );
-			tvTable.Model = listStore;
-
-			// Delete existing columns
-			while( tvTable.Columns.Length > 0 ) {
-				tvTable.RemoveColumn( tvTable.Columns[ 0 ] );
-			}
-			
-			// Create indexes column
-			var column = new Gtk.TreeViewColumn();
-			var cell = new Gtk.CellRendererText();
-			column.Title = "#";
-			column.PackStart( cell, true );
-			cell.Editable = false;
-			cell.Foreground = "black";
-			cell.Background = "light gray";
-			column.AddAttribute( cell, "text", 0 );
-	 		tvTable.AppendColumn( column );
-
-			// Create columns belonging to the document
-			for(int columnNumber = 0; columnNumber < Core.Document.Columns; ++columnNumber) {
-				column = new Gtk.TreeViewColumn();
-				cell = new Gtk.CellRendererText();
-				column.Title = columnNumber.ToString( "X" );
-				column.PackStart( cell, true );
-				cell.Editable = false;
-				column.AddAttribute( cell, "text", columnNumber + 1 );
-		 		tvTable.AppendColumn( column );
-			}
-				
-			// Create text representation column
-			column = new Gtk.TreeViewColumn();
-			cell = new Gtk.CellRendererText();
-			column.Title = "txt";
-			column.PackStart( cell, true );
-			cell.Editable = false;
-			cell.Foreground = "black";
-			cell.Background = "gray";
-			column.AddAttribute( cell, "text", Core.Document.Columns +1 );
-	 		tvTable.AppendColumn( column );
-		} catch(Exception e) {
-			Util.MsgError( null, Core.AppInfo.Name, "Error building view: '" + e.Message + '\'' );
-		}
-		
-		tvTable.EnableGridLines = TreeViewGridLines.Both;
-		tvTable.SetCursor(
-				new TreePath( new int[]{ 0 } ),
-				tvTable.Columns[ 0 ],
-				false
-		);
-		tvTable.Show();
-	}
-		
 	/// <summary>
 	///  Completely updates the view of the document on window
 	/// </summary>
-	protected virtual void ShowData()
+	private void ShowData()
 	{
 		// Avoid race conditions
 		while( this.Updating );
@@ -269,7 +407,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Updates the info of position and other displayed
 	/// </summary>
-	protected virtual void UpdateView()
+	private void UpdateView()
 	{
 		// Position labels
 		this.lblPosition.Text = " | "
@@ -286,7 +424,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Updates the hex info on window
 	/// </summary>
-	protected virtual void ShowBinData()
+	private void ShowBinData()
 	{
 		Gtk.TreeView tvTable = this.tvFile;
 		
@@ -326,7 +464,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Updates the "text only" window.
 	/// </summary>
-	protected virtual void ShowTextualData()
+	private void ShowTextualData()
 	{
 		StringBuilder buffer = new StringBuilder();
 		buffer.EnsureCapacity( this.Document.RawData.Length );
@@ -343,7 +481,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Shows the About dialog
 	/// </summary>
-	protected virtual void OnAbout(object sender, System.EventArgs e)
+	private void OnAbout(object sender, System.EventArgs e)
 	{
 		var about = new Gtk.AboutDialog();
 		String[] authors = { Core.AppInfo.Author };
@@ -367,17 +505,17 @@ public partial class MainWindow : Gtk.Window {
 	    about.Destroy();
 	}
 		
-	protected virtual void OnViewToolbar(object sender, System.EventArgs e)
+	private void OnViewToolbar(object sender, System.EventArgs e)
 	{
 		this.tbToolbar.Visible = this.ViewToolbarAction.Active;
 	}
 	
-	protected virtual void OnQuit(object sender, System.EventArgs e)
+	private void OnQuit(object sender, System.EventArgs e)
 	{
 		Quit();
 	}
 
-	protected virtual void OnOpen(object sender, System.EventArgs e)
+	private void OnOpen(object sender, System.EventArgs e)
 	{
 		if ( Util.DlgOpen( "Open file", Core.AppInfo.Name, this, ref fileName, "*" ) )
 		{
@@ -385,7 +523,7 @@ public partial class MainWindow : Gtk.Window {
 		}
 	}
 		
-	protected void LoadDocument(string fileName)
+	private void LoadDocument(string fileName)
 	{
 		this.SetStatus( "Opening..." );
 			
@@ -405,7 +543,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Configures the sidebar
 	/// </summary>
-	protected virtual void PrepareSideBar()
+	private void PrepareSideBar()
 	{
 		this.lblMaxPos.LabelProp = "<b>" + this.Document.FileLength.ToString() + "</b>";
 		this.scrlSideBar.Adjustment.Lower = 0;
@@ -418,7 +556,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Configures the spin button used to go to a specific position
 	/// </summary>
-	protected virtual void PrepareFilePositionSelector()
+	private void PrepareFilePositionSelector()
 	{
 		this.sbFilePosition.Adjustment.Upper = this.Document.FileLength;
 		this.sbFilePosition.Adjustment.Lower = 0;
@@ -428,54 +566,12 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// When closing...
 	/// </summary>
-	protected virtual void OnClose(object sender, System.EventArgs e)
+	private void OnClose(object sender, System.EventArgs e)
 	{
 		this.document = null;
 		this.DeactivateUI();
 	}
 
-	/// <summary>
-	/// Create the contextual menu and make it ready for action
-	/// </summary>
-	protected void CreatePopup()
-	{
-		// Menus
-		this.popup = new Menu();
-		
-		// First
-		var menuItemGoFirst = new ImageMenuItem( "Go to f_irst" );
-		menuItemGoFirst.Image = new Gtk.Image( Stock.GotoFirst, IconSize.Menu );
-		menuItemGoFirst.Activated += delegate { this.OnGotoFirst( null, null ); };
-		popup.Append( menuItemGoFirst );
-			
-		// Forward
-		var menuItemGoForward = new ImageMenuItem( "Go _forward" );
-		menuItemGoForward.Image = new Gtk.Image( Stock.GoForward, IconSize.Menu );
-		menuItemGoForward.Activated += delegate { this.OnGoForward( null, null ); };
-		popup.Append( menuItemGoForward );
-			
-		// Back
-		var menuItemGoBack = new ImageMenuItem( "Go _back" );
-		menuItemGoBack.Image = new Gtk.Image( Stock.GoBack, IconSize.Menu );
-		menuItemGoBack.Activated += delegate { this.OnGoBackward( null, null ); };
-		popup.Append( menuItemGoBack );
-			
-		// Last
-		var menuItemGoLast = new ImageMenuItem( "Go to _last" );
-		menuItemGoLast.Image = new Gtk.Image( Stock.GotoLast, IconSize.Menu );
-		menuItemGoLast.Activated += delegate { this.OnGotoLast( null, null ); };
-		popup.Append( menuItemGoLast );
-
-		// Close
-		var menuItemClose = new ImageMenuItem( "_Close" );
-		menuItemClose.Image = new Gtk.Image( Stock.Close, IconSize.Menu );
-		menuItemClose.Activated += delegate { this.OnClose( null, null ); };
-		popup.Append( menuItemClose );
-		
-		// Finish
-		popup.ShowAll();
-	}
-		
 	/// <summary>
 	/// Eliminates the last status set
 	/// </summary>
@@ -524,7 +620,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Warns that there is no open document
 	/// </summary>
-	protected virtual void WarnNoDocument()
+	private void WarnNoDocument()
 	{
 		Util.MsgError( this, Core.AppInfo.Name, "No document" );
 	}
@@ -532,7 +628,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Move a page forward
 	/// </summary>
-	protected virtual void OnGoForward(object sender, System.EventArgs e)
+	private void OnGoForward(object sender, System.EventArgs e)
 	{
 		if ( this.Document != null ) {
 			this.Document.Advance();
@@ -544,7 +640,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Move a page backwards
 	/// </summary>
-	protected virtual void OnGoBackward(object sender, System.EventArgs e)
+	private void OnGoBackward(object sender, System.EventArgs e)
 	{
 		if ( this.Document != null ) {
 			this.Document.Recede();
@@ -556,7 +652,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Go to the first page of the document
 	/// </summary>
-	protected virtual void OnGotoFirst(object sender, System.EventArgs e)
+	private void OnGotoFirst(object sender, System.EventArgs e)
 	{
 		if ( this.Document != null ) {
 			this.Document.Position = 0;
@@ -569,7 +665,7 @@ public partial class MainWindow : Gtk.Window {
 	/// Go to the last page of the document
 	/// </summary>
 	/// <param name="sender">
-	protected virtual void OnGotoLast(object sender, System.EventArgs e)
+	private void OnGotoLast(object sender, System.EventArgs e)
 	{
 		if ( this.Document != null ) {
 			this.Document.FrameBufferNumber = this.Document.TotalFrameBuffersNumber -1;
@@ -581,7 +677,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Go to a specific place
 	/// </summary>
-	protected virtual void OnGoto(object sender, System.EventArgs e)
+	private void OnGoto(object sender, System.EventArgs e)
 	{
 		if ( this.Document != null ) {
 			hbPanelGo.Show();
@@ -591,7 +687,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Update the sidebar's position
 	/// </summary>
-	protected virtual void OnSidebarUpdated(object sender, System.EventArgs e)
+	private void OnSidebarUpdated(object sender, System.EventArgs e)
 	{
 		if ( !this.Updating ) {
 			this.Document.FrameBufferNumber = (long) this.scrlSideBar.Value / this.Document.BufferSize;
@@ -602,7 +698,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Hide the go panel
 	/// </summary>
-	protected virtual void OnGoPanelClose(object sender, System.EventArgs e)
+	private void OnGoPanelClose(object sender, System.EventArgs e)
 	{
 		this.hbPanelGo.Hide();
 		this.sbFilePosition.HasFocus = true;
@@ -611,7 +707,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// Hide the find panel
 	/// </summary>
-	protected virtual void OnFindPanelClose(object sender, System.EventArgs e)
+	private void OnFindPanelClose(object sender, System.EventArgs e)
 	{
 		hbPanelFind.Hide();
 	}
@@ -619,7 +715,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// When the user changes the file position selector...
 	/// </summary>
-	protected virtual void OnFilePositionChanged(object sender, System.EventArgs e)
+	private void OnFilePositionChanged(object sender, System.EventArgs e)
 	{
 		if ( this.Document != null ) {
 			this.Document.Position = (long) this.sbFilePosition.Value;
@@ -630,7 +726,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// When the find option is activated...
 	/// </summary>
-	protected virtual void OnFind(object sender, System.EventArgs e)
+	private void OnFind(object sender, System.EventArgs e)
 	{
 		this.hbPanelFind.Show();
 		this.edFind.HasFocus = true;
@@ -639,7 +735,7 @@ public partial class MainWindow : Gtk.Window {
 	/// <summary>
 	/// When the find button is clicked...
 	/// </summary>
-	protected virtual void OnFindClicked(object sender, System.EventArgs e)
+	private void OnFindClicked(object sender, System.EventArgs e)
 	{
 		int opt = this.cbType.Active;
 		
@@ -664,6 +760,56 @@ public partial class MainWindow : Gtk.Window {
 		} else this.WarnNoDocument();
 	}
 
+	/// <summary>
+	/// Determines whether the GUI is updating the data view
+	/// </summary>
+	private bool Updating {
+		get; set;
+	}
+
+	public Core.Document Document {
+		get { return this.document; }
+	}
+
+	/// <summary>
+	/// Gets the config file's absolute path.
+	/// </summary>
+	/// <value>The cfg file path, as a string.</value>
+	public string CfgFile
+	{
+		get {
+			if ( cfgFile.Trim().Length == 0 ) {
+				this.cfgFile = Util.GetCfgCompletePath( CfgFileName );
+			}
+
+			return this.cfgFile;
+		}
+	}
+
+	private string cfgFile = "";
+	private static string fileName = "";
+	private Core.Document document = null;
+	private Menu popup = null;
+
+	private Gtk.Action actOpen;
+	private Gtk.Action actClose;
+	private Gtk.Action actQuit;
+	private Gtk.Action actViewToolbar;
+	private Gtk.Action actForward;
+	private Gtk.Action actBack;
+	private Gtk.Action actRewind;
+	private Gtk.Action actGoToEnd;
+	private Gtk.Action actGoTo;
+	private Gtk.Action actFind;
+	private Gtk.Action actAbout;
+
+	private Gtk.MenuBar mbMenuBar;
+	private Gtk.Menu mFile;
+	private Gtk.Menu mView;
+	private Gtk.Menu mHelp;
+	private Gtk.MenuItem miFile;
+	private Gtk.MenuItem miView;
+	private Gtk.MenuItem miHelp;
 }
 
 }
